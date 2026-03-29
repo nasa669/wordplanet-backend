@@ -1,36 +1,32 @@
 import { serve } from "https://deno.land/std@0.210.0/http/server.ts";
-import cors from "https://deno.land/x/cors@v1.2.2/mod.ts";
 const kv = await Deno.openKv();
 
-// 跨域配置
-const corsOptions = {
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  headers: ["Content-Type"],
+// 跨域头（原生实现，不再用 cors 库）
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
 };
 
 serve(async (req) => {
   // 处理 OPTIONS 跨域预检
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: cors(corsOptions) });
+    return new Response(null, { headers: corsHeaders });
   }
 
   const url = new URL(req.url);
   const path = url.pathname;
-  const headers = { ...cors(corsOptions), "Content-Type": "application/json" };
+  const headers = { ...corsHeaders, "Content-Type": "application/json" };
 
   // ====================== 1. 用户模块 ======================
   // 注册
   if (path === "/api/register" && req.method === "POST") {
     const { username, password } = await req.json();
-    // 检查用户名是否已存在
     const existingUser = await kv.get(["users", username]);
     if (existingUser.value) {
       return new Response(JSON.stringify({ success: false }), { headers });
     }
-    // 保存用户
     await kv.set(["users", username], { username, password });
-    // 初始化用户数据
     await kv.set(["userData", username], {
       knownWords: { CET4: [], CET6: [], 考研: [] },
       dailyGoal: { CET4: 10, CET6: 10, 考研: 10 },
@@ -58,7 +54,6 @@ serve(async (req) => {
     if (!userData.value) {
       return new Response(JSON.stringify({ success: false }), { headers });
     }
-    // 添加到已学单词（去重）
     if (!userData.value.knownWords[category].includes(word)) {
       userData.value.knownWords[category].push(word);
       await kv.set(["userData", username], userData.value);
@@ -148,9 +143,8 @@ serve(async (req) => {
       return new Response(JSON.stringify([]), { headers });
     }
     const knownWords = userData.value.knownWords[category] || [];
-    // 模拟单词详情（实际应从单词库获取）
     return new Response(JSON.stringify(knownWords.slice(0, 10)), { headers });
   }
 
-  return new Response("Not found", { status: 404, headers });
+  return new Response("Not found", { status: 404, headers: corsHeaders });
 });
