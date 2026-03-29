@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "main.ts": {
+      "runtime": "@vercel/deno@1"
+    }
+  },
+  "routes": [
+    { "src": "/(.*)", "dest": "/main.ts" }
+  ]
+}
