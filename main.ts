@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.210.0/http/server.ts";
 const kv = await Deno.openKv();
 
-// 跨域头（原生实现，不再用 cors 库）
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -9,7 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // 处理 OPTIONS 跨域预检
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -18,7 +16,6 @@ serve(async (req) => {
   const path = url.pathname;
   const headers = { ...corsHeaders, "Content-Type": "application/json" };
 
-  // ====================== 1. 用户模块 ======================
   // 注册
   if (path === "/api/register" && req.method === "POST") {
     const { username, password } = await req.json();
@@ -46,7 +43,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers });
   }
 
-  // ====================== 2. 单词学习模块 ======================
   // 保存已学单词
   if (path === "/api/save-known" && req.method === "POST") {
     const { username, word, category } = await req.json();
@@ -84,7 +80,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers });
   }
 
-  // 获取每日目标和进度
+  // 获取每日目标
   if (path === "/api/get-daily-goal" && req.method === "GET") {
     const username = url.searchParams.get("username");
     const category = url.searchParams.get("category");
@@ -98,7 +94,7 @@ serve(async (req) => {
     }), { headers });
   }
 
-  // 更新每日学习进度
+  // 更新学习进度
   if (path === "/api/update-daily-learned" && req.method === "POST") {
     const { username, category, learned } = await req.json();
     const userData = await kv.get(["userData", username]);
@@ -110,7 +106,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers });
   }
 
-  // ====================== 3. 错题集模块 ======================
   // 保存错题
   if (path === "/api/save-wrong" && req.method === "POST") {
     const { username, word, definition, category } = await req.json();
@@ -133,8 +128,7 @@ serve(async (req) => {
     return new Response(JSON.stringify(wrongList), { headers });
   }
 
-  // ====================== 4. 游戏模块 ======================
-  // 获取游戏可用单词
+  // 游戏单词
   if (path === "/api/get-game-words" && req.method === "GET") {
     const username = url.searchParams.get("username");
     const category = url.searchParams.get("category");
