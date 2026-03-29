@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.210.0/http/server.ts";
 
-// 用内存模拟数据库（不再需要 Deno KV）
+// 内存模拟数据库
 const memoryStore = new Map();
 
 const corsHeaders = {
@@ -9,7 +9,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-serve(async (req) => {
+export default async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -145,4 +145,4 @@ serve(async (req) => {
   }
 
   return new Response("Not found", { status: 404, headers: corsHeaders });
-});
+};
