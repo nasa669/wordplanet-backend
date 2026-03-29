@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.210.0/http/server.ts";
-import { cors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
+import cors from "https://deno.land/x/cors@v1.2.2/mod.ts";
 const kv = await Deno.openKv();
 
 // 跨域配置
