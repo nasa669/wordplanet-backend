@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.210.0/http/server.ts";
-const kv = await Deno.openKv("wordplanet-kv");
+
+// 用内存模拟数据库（不再需要 Deno KV）
+const memoryStore = new Map();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,12 +21,11 @@ serve(async (req) => {
   // 注册
   if (path === "/api/register" && req.method === "POST") {
     const { username, password } = await req.json();
-    const existingUser = await kv.get(["users", username]);
-    if (existingUser.value) {
+    if (memoryStore.has(`user:${username}`)) {
       return new Response(JSON.stringify({ success: false }), { headers });
     }
-    await kv.set(["users", username], { username, password });
-    await kv.set(["userData", username], {
+    memoryStore.set(`user:${username}`, { password });
+    memoryStore.set(`userData:${username}`, {
       knownWords: { CET4: [], CET6: [], 考研: [] },
       dailyGoal: { CET4: 10, CET6: 10, 考研: 10 },
       dailyLearned: { CET4: 0, CET6: 0, 考研: 0 },
@@ -36,8 +37,8 @@ serve(async (req) => {
   // 登录
   if (path === "/api/login" && req.method === "POST") {
     const { username, password } = await req.json();
-    const user = await kv.get(["users", username]);
-    if (!user.value || user.value.password !== password) {
+    const user = memoryStore.get(`user:${username}`);
+    if (!user || user.password !== password) {
       return new Response(JSON.stringify({ success: false }), { headers });
     }
     return new Response(JSON.stringify({ success: true }), { headers });
@@ -46,13 +47,13 @@ serve(async (req) => {
   // 保存已学单词
   if (path === "/api/save-known" && req.method === "POST") {
     const { username, word, category } = await req.json();
-    const userData = await kv.get(["userData", username]);
-    if (!userData.value) {
+    const userData = memoryStore.get(`userData:${username}`);
+    if (!userData) {
       return new Response(JSON.stringify({ success: false }), { headers });
     }
-    if (!userData.value.knownWords[category].includes(word)) {
-      userData.value.knownWords[category].push(word);
-      await kv.set(["userData", username], userData.value);
+    if (!userData.knownWords[category].includes(word)) {
+      userData.knownWords[category].push(word);
+      memoryStore.set(`userData:${username}`, userData);
     }
     return new Response(JSON.stringify({ success: true }), { headers });
   }
@@ -61,22 +62,22 @@ serve(async (req) => {
   if (path === "/api/get-known" && req.method === "GET") {
     const username = url.searchParams.get("username");
     const category = url.searchParams.get("category");
-    const userData = await kv.get(["userData", username]);
-    if (!userData.value) {
+    const userData = memoryStore.get(`userData:${username}`);
+    if (!userData) {
       return new Response(JSON.stringify([]), { headers });
     }
-    return new Response(JSON.stringify(userData.value.knownWords[category] || []), { headers });
+    return new Response(JSON.stringify(userData.knownWords[category] || []), { headers });
   }
 
   // 设置每日目标
   if (path === "/api/set-daily-goal" && req.method === "POST") {
     const { username, category, goal } = await req.json();
-    const userData = await kv.get(["userData", username]);
-    if (!userData.value) {
+    const userData = memoryStore.get(`userData:${username}`);
+    if (!userData) {
       return new Response(JSON.stringify({ success: false }), { headers });
     }
-    userData.value.dailyGoal[category] = goal;
-    await kv.set(["userData", username], userData.value);
+    userData.dailyGoal[category] = goal;
+    memoryStore.set(`userData:${username}`, userData);
     return new Response(JSON.stringify({ success: true }), { headers });
   }
 
@@ -84,25 +85,25 @@ serve(async (req) => {
   if (path === "/api/get-daily-goal" && req.method === "GET") {
     const username = url.searchParams.get("username");
     const category = url.searchParams.get("category");
-    const userData = await kv.get(["userData", username]);
-    if (!userData.value) {
+    const userData = memoryStore.get(`userData:${username}`);
+    if (!userData) {
       return new Response(JSON.stringify({ goal: 10, learned: 0 }), { headers });
     }
     return new Response(JSON.stringify({
-      goal: userData.value.dailyGoal[category] || 10,
-      learned: userData.value.dailyLearned[category] || 0,
+      goal: userData.dailyGoal[category] || 10,
+      learned: userData.dailyLearned[category] || 0,
     }), { headers });
   }
 
   // 更新学习进度
   if (path === "/api/update-daily-learned" && req.method === "POST") {
     const { username, category, learned } = await req.json();
-    const userData = await kv.get(["userData", username]);
-    if (!userData.value) {
+    const userData = memoryStore.get(`userData:${username}`);
+    if (!userData) {
       return new Response(JSON.stringify({ success: false }), { headers });
     }
-    userData.value.dailyLearned[category] = learned;
-    await kv.set(["userData", username], userData.value);
+    userData.dailyLearned[category] = learned;
+    memoryStore.set(`userData:${username}`, userData);
     return new Response(JSON.stringify({ success: true }), { headers });
   }
 
@@ -110,7 +111,7 @@ serve(async (req) => {
   if (path === "/api/save-wrong" && req.method === "POST") {
     const { username, word, definition, category } = await req.json();
     const id = crypto.randomUUID();
-    await kv.set(["wrongNotes", username, id], {
+    memoryStore.set(`wrongNote:${username}:${id}`, {
       word,
       definition,
       category,
@@ -122,9 +123,12 @@ serve(async (req) => {
   // 获取错题
   if (path === "/api/get-wrong" && req.method === "GET") {
     const username = url.searchParams.get("username");
-    const iter = kv.list({ prefix: ["wrongNotes", username] });
     const wrongList = [];
-    for await (const res of iter) wrongList.push(res.value);
+    for (const [key, value] of memoryStore.entries()) {
+      if (key.startsWith(`wrongNote:${username}:`)) {
+        wrongList.push(value);
+      }
+    }
     return new Response(JSON.stringify(wrongList), { headers });
   }
 
@@ -132,11 +136,11 @@ serve(async (req) => {
   if (path === "/api/get-game-words" && req.method === "GET") {
     const username = url.searchParams.get("username");
     const category = url.searchParams.get("category");
-    const userData = await kv.get(["userData", username]);
-    if (!userData.value) {
+    const userData = memoryStore.get(`userData:${username}`);
+    if (!userData) {
       return new Response(JSON.stringify([]), { headers });
     }
-    const knownWords = userData.value.knownWords[category] || [];
+    const knownWords = userData.knownWords[category] || [];
     return new Response(JSON.stringify(knownWords.slice(0, 10)), { headers });
   }
 
