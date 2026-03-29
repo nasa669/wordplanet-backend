@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.210.0/http/server.ts";
-const kv = await Deno.openKv();
+const kv = await Deno.openKv("wordplanet-kv");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
